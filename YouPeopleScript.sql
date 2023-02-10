@@ -121,8 +121,6 @@ ORDER BY a.rating DESC;
 
 
 
-
-
 SELECT REPLACE(price, '$', '')::numeric
 FROM play_store_apps;
 
