@@ -120,6 +120,7 @@ AND a.price BETWEEN 0.00 AND 2.50
 ORDER BY a.rating DESC;
 
 
+
 SELECT REPLACE(price, '$', '')::numeric
 FROM play_store_apps;
 
