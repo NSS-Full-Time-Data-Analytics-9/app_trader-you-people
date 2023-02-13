@@ -1,5 +1,5 @@
 SELECT *
-FROM app_store_apps;
+FROM play_store_apps;
 
 -- a. Develop some general recommendations about the price range, genre, content rating, or any other app characteristics that the company should target.
 
@@ -136,7 +136,7 @@ GROUP BY content_rating
 ORDER BY perc_profitable DESC, average_roi DESC;
 
 
---average roi, percent profitable, other stats by content rating
+--average roi, percent profitable, other stats by price range
 
 --price range sorting
 SELECT name,
@@ -344,8 +344,8 @@ ORDER BY perc_genre DESC;
 
 --average roi, percent profitable, other stats by genre
 SELECT 
-	genres,
-	COUNT(genres),
+	category,
+	COUNT(category) AS no_of_apps,
 	ROUND(AVG(estimated_revenue),2) AS estimated_revenue,
 	MIN(roi),
 	MAX(roi),
@@ -353,7 +353,7 @@ SELECT
 	ROUND(100*COUNT(CASE WHEN roi > 0 THEN 1 END)/(COUNT(*)),2) AS perc_profitable
 FROM(SELECT 
 		name, 
-		genres,
+		category,
 		rating,
 		REPLACE(price, '$', '')::numeric,
 	 	2500*(12+(24*rating)) AS estimated_revenue,
@@ -365,8 +365,9 @@ FROM(SELECT
 			ELSE 25000 END AS value
 	FROM play_store_apps) AS vc
 	USING(name)) AS roi_tbl
-GROUP BY genres
-ORDER BY perc_profitable DESC, average_roi DESC;
+GROUP BY category
+--HAVING COUNT(category) > 50
+ORDER BY average_roi DESC,perc_profitable DESC;
 
 
 --average roi, percent profitable, other stats by content rating
@@ -393,10 +394,10 @@ FROM(SELECT
 	FROM play_store_apps) AS vc
 	USING(name)) AS roi_tbl
 GROUP BY content_rating
-ORDER BY perc_profitable DESC, average_roi DESC;
+ORDER BY average_roi DESC,perc_profitable DESC;
 
 
---average roi, percent profitable, other stats by content rating
+--average roi, percent profitable, other stats by price range
 
 --price range sorting
 SELECT name,
@@ -440,7 +441,7 @@ FROM(SELECT
 	FROM play_store_apps) AS vc
 	USING(name)) AS roi_tbl
 GROUP BY price_range
-ORDER BY perc_profitable DESC, average_roi DESC;
+ORDER BY average_roi DESC,perc_profitable DESC;
 
 
 
@@ -587,7 +588,7 @@ FROM(SELECT *
 		name,
 		CASE WHEN price > 2.5 THEN price*10000
 			ELSE 25000 END AS value
-	FROM app_store_apps) AS vcast --determines play store cost of app for app trader
+	FROM app_store_apps) AS vcast --determines app store cost of app for app trader
 	USING(name)) AS roi_tbl
 WHERE roi = 173000
 GROUP BY genres
@@ -799,6 +800,106 @@ REPLACE(price, '$', '')::numeric
 Same as Q1 but sort by roi desc, limit 10 
 */
 
+
+SELECT
+	DISTINCT pst.name, 
+	((2500*(12+(24*pst.rating)))-((1000*(12+(24*pst.rating)))+vcpst.value))+((2500*(12+(24*ast.rating)))-((1000*(12+(24*ast.rating)))+vcast.value)) AS roi
+FROM play_store_apps AS pst
+INNER JOIN app_store_apps AS ast
+USING (name)
+LEFT JOIN (SELECT 
+	name,
+	CASE WHEN REPLACE(price, '$', '')::numeric > 2.5 THEN REPLACE(price, '$', '')::numeric*10000
+		ELSE 25000 END AS value
+FROM play_store_apps) AS vcpst --determines play store cost of app for app trader
+USING(name)
+LEFT JOIN (SELECT 
+	name,
+	CASE WHEN price > 2.5 THEN price*10000
+		ELSE 25000 END AS value
+FROM app_store_apps) AS vcast --determines app store cost of app for app trader
+USING(name)
+ORDER BY roi DESC
+LIMIT 10;
+
+
 -- c. Develop a Top 4 list of the apps that App Trader should buy that are profitable but that also are thematically appropriate for next months's Pi Day themed campaign.
+
+SELECT 
+	'Both Stores' AS app_store,
+	DISTINCT name,
+	ROUND(AVG(estimated_revenue),2) AS estimated_revenue,
+	MIN(roi),
+	MAX(roi),
+	ROUND(AVG(roi),2) AS average_roi,
+ 	ROUND(100*COUNT(CASE WHEN roi > 0 THEN 1 END)/(COUNT(*)),2) AS perc_profitable
+
+-- 	pst.name, 
+-- 	ROUND(AVG(((2500*(12+(24*pst.rating)))-((1000*(12+(24*pst.rating)))+vcpst.value))+((2500*(12+(24*ast.rating)))-((1000*(12+(24*ast.rating)))+vcast.value))),2) AS roi
+FROM play_store_apps AS pst
+INNER JOIN app_store_apps AS ast
+USING (name)
+LEFT JOIN (SELECT 
+	name,
+	CASE WHEN REPLACE(price, '$', '')::numeric > 2.5 THEN REPLACE(price, '$', '')::numeric*10000
+		ELSE 25000 END AS value
+FROM play_store_apps) AS vcpst --determines play store cost of app for app trader
+USING(name)
+LEFT JOIN (SELECT 
+	name,
+	CASE WHEN price > 2.5 THEN price*10000
+		ELSE 25000 END AS value
+FROM app_store_apps) AS vcast --determines app store cost of app for app trader
+USING(name)
+WHERE name iLIKE '%pizza%' or name ilike '%pie%' or primary_genre = 'Education'
+GROUP BY name)
+UNION
+(SELECT 
+	'App Store' AS app_store,
+	name,
+	ROUND(AVG(estimated_revenue),2) AS estimated_revenue,
+	MIN(roi),
+	MAX(roi),
+	ROUND(AVG(roi),2) AS average_roi,
+ 	ROUND(100*COUNT(CASE WHEN roi > 0 THEN 1 END)/(COUNT(*)),2) AS perc_profitable
+FROM(SELECT 
+		name, 
+		rating,
+		price,
+	 	2500*(12+(24*rating)) AS estimated_revenue,
+		((2500*(12+(24*rating)))-((1000*(12+(24*rating)))+vc.value)) AS roi
+	FROM app_store_apps
+	LEFT JOIN (SELECT 
+		name,
+		CASE WHEN price > 2.5 THEN price*10000
+			ELSE 25000 END AS value
+	FROM app_store_apps) AS vc
+	USING(name)) AS roi_tbl
+WHERE name iLIKE '%pizza%' or name ilike 'pie%'
+GROUP BY name)
+UNION
+(SELECT 
+	'Play Store' AS app_store,
+ 	name,
+	ROUND(AVG(estimated_revenue),2) AS estimated_revenue,
+	MIN(roi),
+	MAX(roi),
+	ROUND(AVG(roi),2) AS average_roi,
+	ROUND(100*COUNT(CASE WHEN roi > 0 THEN 1 END)/(COUNT(*)),2) AS perc_profitable
+FROM(SELECT 
+		name, 
+		rating,
+		REPLACE(price, '$', '')::numeric,
+	 	2500*(12+(24*rating)) AS estimated_revenue,
+		((2500*(12+(24*rating)))-((1000*(12+(24*rating)))+vc.value)) AS roi
+	FROM play_store_apps
+	LEFT JOIN (SELECT 
+		name,
+		CASE WHEN REPLACE(price, '$', '')::numeric > 2.5 THEN REPLACE(price, '$', '')::numeric*10000
+			ELSE 25000 END AS value
+	FROM play_store_apps) AS vc
+	USING(name)) AS roi_tbl
+WHERE name iLIKE '%pizza%' or name ilike '% pie%' 
+GROUP BY name);
 
 -- c. Submit a report based on your findings. The report should include both of your lists of apps along with your analysis of their cost and potential profits. All analysis work must be done using PostgreSQL, however you may export query results to create charts in Excel for your report.
